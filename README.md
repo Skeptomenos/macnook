@@ -5,9 +5,26 @@ Collapse the ones you rarely touch into a tray that opens below the bar rather
 than along it, so nothing on the bar gets covered or moved. Drag widgets in and
 out.
 
+This tree is a **fork** of [Katsari/nook](https://github.com/Katsari/nook),
+kept for notched Apple-silicon Omarchy bars. The plugin id is still
+`io.github.katsari.nook`, so it is a drop-in replacement, not a new widget.
+Upstream Nook remains the project to follow for general Omarchy.
+
+On a notched panel the bar window is the camera shelf, not the icon row.
+This fork offsets the drawer by that full window, sits flush against it,
+draws no popup border, keeps the layer mapped across open/close so hosted
+widgets are not reparented mid-animation, and collapses a cell when the
+hosted widget sets `visible: false` (updates, keyboard layout, AirPods).
+
 ![Nook open, with several widgets in the tray](preview.png)
 
 ## Install
+
+```sh
+omarchy plugin add https://github.com/Skeptomenos/nook.git --enable
+```
+
+Upstream, without the notch patches:
 
 ```sh
 omarchy plugin add https://github.com/Katsari/nook.git --enable
@@ -122,6 +139,10 @@ handing third-party widgets the real bar, so Nook now adopts it from a
 first-party widget on the same bar; on a bar without any first-party widget
 it sits inert. A future update can break it again.
 
+- **Notched Apple panels.** Upstream Nook offsets the drawer by `Style.bar.size`.
+  On a MacBook the bar window is the camera shelf, which is taller, so that
+  puts the strip in the cutout. This fork measures the bar window and sits
+  flush against it.
 - **One Nook per bar.** The manifest sets `allowMultiple` false, so the bar
   will not add a second. A hand-written one would still load, and both would
   write to the first entry they find.

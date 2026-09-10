@@ -184,6 +184,21 @@ BarWidget {
   }
   readonly property bool revealed: revealProgress > 0.99
 
+  // Keep the layer mapped after the first open. Binding PanelWindow.visible to
+  // revealProgress unmaps the surface from the animation timer and reparents
+  // hosted widgets onto another window; Qt then SIGSEGVs with
+  // "Cannot use same item on different windows at the same time".
+  property bool stripMapped: false
+
+  function syncStripMapped() {
+    if (root.entries.length === 0) {
+      stripMapped = false
+      return
+    }
+    if (root.expanded)
+      stripMapped = true
+  }
+
   implicitWidth: chevron.implicitWidth
   implicitHeight: chevron.implicitHeight
 
@@ -232,6 +247,17 @@ BarWidget {
   readonly property real cardPadding: Style.space(4)
   readonly property real cardMargin: Style.gapsOut
 
+  // On a notched Apple panel the bar window is taller than Style.bar.size
+  // (see Bar.qml notchFloor). The strip must clear that full window, not the
+  // icon row, or the drawer sits inside the camera cutout. Sit flush against
+  // the bar — no extra gap.
+  readonly property real barThickness: {
+    var measured = 0
+    if (barWindow)
+      measured = vertical ? barWindow.width : barWindow.height
+    return Math.max(barSize, measured)
+  }
+
   readonly property real contentExtent: vertical ? itemsFlow.implicitHeight : itemsFlow.implicitWidth
   readonly property real cardExtent: Math.max(chevronExtent,
     Math.min(contentExtent + cardPadding * 2, Math.max(0, screenAlong - cardMargin * 2)))
@@ -243,7 +269,10 @@ BarWidget {
   property real scrollOffset: 0
 
   onMaxScrollChanged: scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll))
-  onExpandedChanged: if (!expanded) scrollOffset = 0
+  onExpandedChanged: {
+    if (!expanded) scrollOffset = 0
+    root.syncStripMapped()
+  }
 
   function scrollBy(amount) {
     if (!overflowing) return
@@ -275,7 +304,10 @@ BarWidget {
 
   property var cells: []
 
-  onEntriesChanged: cells = []
+  onEntriesChanged: {
+    cells = []
+    root.syncStripMapped()
+  }
 
   function setCell(index, cell) {
     var next = cells.slice()
@@ -507,7 +539,10 @@ BarWidget {
     reconcileTimer.restart()
   }
   onStrandedIdsChanged: if (strandedIds.length > 0) reconcileTimer.restart()
-  Component.onCompleted: if (missingIds.length > 0 || strandedIds.length > 0) reconcileTimer.restart()
+  Component.onCompleted: {
+    root.syncStripMapped()
+    if (missingIds.length > 0 || strandedIds.length > 0) reconcileTimer.restart()
+  }
 
   Timer {
     id: reconcileTimer
@@ -579,7 +614,7 @@ BarWidget {
     id: strip
 
     screen: root.barWindow ? root.barWindow.screen : null
-    visible: root.revealProgress > 0.001 && root.entries.length > 0
+    visible: root.stripMapped
     color: "transparent"
     surfaceFormat.opaque: false
     exclusionMode: ExclusionMode.Ignore
@@ -594,26 +629,29 @@ BarWidget {
       right: root.barPosition === "right" || !root.vertical
     }
 
-    implicitWidth: root.vertical ? root.barSize + root.stripThickness : 0
-    implicitHeight: root.vertical ? 0 : root.barSize + root.stripThickness
+    implicitWidth: root.vertical ? root.barThickness + root.stripThickness : 0
+    implicitHeight: root.vertical ? 0 : root.barThickness + root.stripThickness
 
     // Only the card takes input, or the stretch over the bar would swallow its
     // clicks. Spelled out rather than `Region { item: cardArea }`: the item form
     // snapshots geometry, and the card moves after the window exists.
     // Except while dragging: motion stops at the input region's edge, hiding the
-    // move onto the bar that means eject.
+    // move onto the bar that means eject. Closed (revealProgress ~ 0) uses an
+    // empty region so the mapped-but-hidden layer does not eat bar clicks.
     mask: Region {
       x: root.draggingChild ? 0 : Math.round(cardArea.x)
       y: root.draggingChild ? 0 : Math.round(cardArea.y)
-      width: root.draggingChild ? strip.width : Math.ceil(cardArea.width)
-      height: root.draggingChild ? strip.height : Math.ceil(cardArea.height)
+      width: (root.draggingChild || root.revealProgress > 0.01)
+        ? (root.draggingChild ? strip.width : Math.ceil(cardArea.width)) : 0
+      height: (root.draggingChild || root.revealProgress > 0.01)
+        ? (root.draggingChild ? strip.height : Math.ceil(cardArea.height)) : 0
     }
 
     Item {
       id: cardArea
 
       readonly property real acrossOffset: root.barPosition === "top" || root.barPosition === "left"
-        ? root.barSize : 0
+        ? root.barThickness : 0
 
       x: root.vertical ? acrossOffset : root.cardAlong
       y: root.vertical ? root.cardAlong : acrossOffset
@@ -663,8 +701,7 @@ BarWidget {
       BorderSurface {
         anchors.fill: parent
         color: root.cardBackground
-        borderSpec: Border.localOrSurfaceSpec("popups", "border", Color.popups.border,
-          Color.popups.border, Math.max(1, Style.space(2)))
+        borderSpec: Border.none()
         radius: Style.cornerRadius
       }
 
@@ -818,14 +855,71 @@ BarWidget {
     // Uninstalled: take up no room while the removal is written out.
     readonly property bool uninstalled: !cell.custom && root.missingIds.indexOf(cell.childId) !== -1
 
-    implicitWidth: uninstalled ? 0
-      : (childItem ? (root.vertical ? root.barSize : childItem.implicitWidth) : Style.bar.iconSlot)
-    implicitHeight: uninstalled ? 0
-      : (childItem ? childItem.implicitHeight : Style.bar.iconSlot)
+    // Last known "this widget wants to be on the bar" size. Start assuming
+    // shown so a failed first measure cannot empty the drawer; the first
+    // open corrects widgets that really set visible:false.
+    property bool hostedShown: true
+    property real hostedExtent: Style.bar.iconSlot
+
+    function hostLoaderVisible() {
+      return cell.customType === "qml" ? qmlLoader.visible : childLoader.visible
+    }
+
+    function syncHostedMetrics() {
+      if (cell.uninstalled) {
+        hostedShown = false
+        hostedExtent = 0
+        return
+      }
+      var item = cell.childItem
+      if (!item) {
+        var placeholder = !cell.custom && cell.childComponent === null
+        hostedShown = placeholder
+        hostedExtent = placeholder ? Style.bar.iconSlot : 0
+        return
+      }
+      // Item.visible is effective visibility. While the loader is hidden
+      // (drawer shut) every child reads as false — ignore that.
+      if (!cell.hostLoaderVisible())
+        return
+      if (item.visible === false) {
+        hostedShown = false
+        hostedExtent = 0
+        return
+      }
+      hostedShown = true
+      var natural = root.vertical ? item.implicitHeight : item.implicitWidth
+      if (natural > 0)
+        hostedExtent = natural
+    }
+
+    Connections {
+      target: cell.childItem
+      enabled: cell.hostLoaderVisible()
+      function onVisibleChanged() { cell.syncHostedMetrics() }
+      function onImplicitWidthChanged() { cell.syncHostedMetrics() }
+      function onImplicitHeightChanged() { cell.syncHostedMetrics() }
+    }
+
+    onUninstalledChanged: cell.syncHostedMetrics()
+    onChildComponentChanged: cell.syncHostedMetrics()
+
+    Timer {
+      id: metricsAfterReveal
+      interval: 1
+      onTriggered: cell.syncHostedMetrics()
+    }
+
+    implicitWidth: hostedShown ? (root.vertical ? root.barSize : hostedExtent) : 0
+    implicitHeight: hostedShown ? (root.vertical ? hostedExtent : root.barSize) : 0
     width: implicitWidth
     height: implicitHeight
+    clip: true
 
-    Component.onCompleted: root.setCell(cell.index, cell)
+    Component.onCompleted: {
+      root.setCell(cell.index, cell)
+      cell.syncHostedMetrics()
+    }
     // A reused delegate never runs onCompleted again.
     onPositionChanged: root.setCell(cell.index, cell)
 
@@ -884,10 +978,15 @@ BarWidget {
       source: cell.customType === "qml" ? root.customSourceOf(cell.entry) : ""
       visible: root.revealProgress > 0.01
       opacity: cell.dragSource ? (root.draggingOutside ? 0.12 : 0.3) : 1.0
+      onVisibleChanged: if (visible) {
+        Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
+        metricsAfterReveal.restart()
+      }
       onLoaded: {
         cell.inject()
         Qt.callLater(cell.inject)
         Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
+        Qt.callLater(cell.syncHostedMetrics)
       }
     }
 
@@ -898,7 +997,10 @@ BarWidget {
       sourceComponent: cell.childComponent
       // An icon loaded from a Component does not exist until the strip is
       // drawn, so catch it on the way in as well.
-      onVisibleChanged: if (visible) Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
+      onVisibleChanged: if (visible) {
+        Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
+        metricsAfterReveal.restart()
+      }
 
       // Every WidgetButton here registers in `bar.clickTargets`, which
       // Bar.moduleClickTargetAt scans across windows with no idea the strip is shut.
@@ -909,6 +1011,7 @@ BarWidget {
         cell.inject()
         Qt.callLater(cell.inject)
         Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
+        Qt.callLater(cell.syncHostedMetrics)
       }
 
       Behavior on opacity { NumberAnimation { duration: 90 } }
