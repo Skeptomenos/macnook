@@ -1,33 +1,25 @@
-# Nook
+# MacNook
 
-A bar drawer for Omarchy, for when too many plugins have cluttered your bar.
-Collapse the ones you rarely touch into a tray that opens below the bar rather
-than along it, so nothing on the bar gets covered or moved. Drag widgets in and
-out.
+A bar drawer for Omarchy on notched Apple panels. Collapse the widgets you
+rarely touch into a tray that opens below the bar rather than along it, so
+nothing on the bar gets covered or moved. Drag widgets in and out.
 
-This tree is a **fork** of [Katsari/nook](https://github.com/Katsari/nook),
-kept for notched Apple-silicon Omarchy bars. The plugin id is still
-`io.github.katsari.nook`, so it is a drop-in replacement, not a new widget.
-Upstream Nook remains the project to follow for general Omarchy.
+MacNook is based on [Katsari/nook](https://github.com/Katsari/nook). It is a
+separate plugin (`david.macnook`), not a drop-in replacement. Upstream Nook
+remains the project to follow on a panel without a camera cutout.
 
 On a notched panel the bar window is the camera shelf, not the icon row.
-This fork offsets the drawer by that full window, sits flush against it,
-draws no popup border, keeps the layer mapped across open/close so hosted
-widgets are not reparented mid-animation, and collapses a cell when the
-hosted widget sets `visible: false` (updates, keyboard layout, AirPods).
+MacNook offsets the drawer by that full window, sits flush against it, draws
+no popup border, keeps the layer mapped across open/close so hosted widgets
+are not reparented mid-animation, and collapses a cell when the hosted widget
+sets `visible: false` (updates, keyboard layout, AirPods).
 
-![Nook open, with several widgets in the tray](preview.png)
+![MacNook open, with several widgets in the tray](preview.png)
 
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/Skeptomenos/nook.git --enable
-```
-
-Upstream, without the notch patches:
-
-```sh
-omarchy plugin add https://github.com/Katsari/nook.git --enable
+omarchy plugin add https://github.com/Skeptomenos/macnook.git --enable
 ```
 
 ## Usage
@@ -45,7 +37,7 @@ Every move rewrites `~/.config/omarchy/shell.json`.
 
 ## Settings
 
-Settings live on Nook's `bar.layout` entry in `~/.config/omarchy/shell.json`.
+Settings live on MacNook's `bar.layout` entry in `~/.config/omarchy/shell.json`.
 
 | Key         | Default   | Meaning                                                         |
 | ----------- | --------- | --------------------------------------------------------------- |
@@ -54,7 +46,7 @@ Settings live on Nook's `bar.layout` entry in `~/.config/omarchy/shell.json`.
 | `duration`  | `180`     | Reveal animation, in milliseconds                               |
 | `hideAfter` | `10000`   | Close a pinned tray this many ms after the pointer leaves; `0` disables |
 
-The tray's layer surface is named `nook`, for Hyprland layer rules.
+The tray's layer surface is named `macnook`, for Hyprland layer rules.
 
 Custom modules work too. An entry with `exec` runs its command on an interval
 and shows the output, the same as on the bar; one with `source` loads that QML
@@ -65,7 +57,7 @@ on the item:
 
 ```json
 {
-  "id": "io.github.katsari.nook",
+  "id": "david.macnook",
   "trigger": "hover",
   "items": [
     { "id": "some.widget" },
@@ -81,11 +73,11 @@ does both for you.
 ## Commands
 
 ```bash
-omarchy-shell io.github.katsari.nook toggle            # also: open, close
-omarchy-shell io.github.katsari.nook absorb <id>       # move a widget in
-omarchy-shell io.github.katsari.nook eject <id>        # put one back on the bar
-omarchy-shell io.github.katsari.nook reorder <from> <to>
-omarchy-shell io.github.katsari.nook status            # what it thinks it is doing
+omarchy-shell david.macnook toggle            # also: open, close
+omarchy-shell david.macnook absorb <id>       # move a widget in
+omarchy-shell david.macnook eject <id>        # put one back on the bar
+omarchy-shell david.macnook reorder <from> <to>
+omarchy-shell david.macnook status            # what it thinks it is doing
 ```
 
 `reorder` takes positions among the widgets the tray draws, counting from
@@ -126,27 +118,27 @@ the end, pass or fail.
 ## Remove
 
 ```sh
-omarchy plugin remove io.github.katsari.nook
+omarchy plugin remove david.macnook
 ```
 
-Whatever the tray held stays in `items` on that entry, so removing Nook while
-it is full leaves those widgets off your bar. Drag them out first, or `eject`
-each one.
+Whatever the tray held stays in `items` on that entry, so removing MacNook
+while it is full leaves those widgets off your bar. Drag them out first, or
+`eject` each one.
 
 ## Known limits
 
-Built for Omarchy 4.0.3. Beyond the widget contract every plugin uses, Nook
+Built for Omarchy 4.0.3. Beyond the widget contract every plugin uses, MacNook
 reaches into the bar's widget registry, its slot and click-target
 bookkeeping, and its drag state. No plugin API covers those. 4.0.3 stopped
-handing third-party widgets the real bar, so Nook now adopts it from a
+handing third-party widgets the real bar, so MacNook now adopts it from a
 first-party widget on the same bar; on a bar without any first-party widget
 it sits inert. A future update can break it again.
 
 - **Notched Apple panels.** Upstream Nook offsets the drawer by `Style.bar.size`.
   On a MacBook the bar window is the camera shelf, which is taller, so that
-  puts the strip in the cutout. This fork measures the bar window and sits
+  puts the strip in the cutout. MacNook measures the bar window and sits
   flush against it.
-- **One Nook per bar.** The manifest sets `allowMultiple` false, so the bar
+- **One MacNook per bar.** The manifest sets `allowMultiple` false, so the bar
   will not add a second. A hand-written one would still load, and both would
   write to the first entry they find.
 - **Bottom and right bars can misroute a bar click.** `Bar.moduleClickTargetAt`
@@ -161,3 +153,10 @@ it sits inert. A future update can break it again.
   counts the panels visible in a bar section, so the tray's contents are not
   in the count. Toggling a panel by id works: `omarchy-shell shell summon
 <id>` opens the tray and its panel with it.
+
+## Credits
+
+MacNook started as a fork of [Nook](https://github.com/Katsari/nook) by
+Katsari, MIT licensed. The drawer, nested widget loading, drag model, and
+persistence are theirs. The notch flush, crash-safe layer, hidden-cell
+collapse, autohide, and this plugin identity are this tree's.

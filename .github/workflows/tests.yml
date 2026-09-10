@@ -35,7 +35,9 @@ jobs:
             echo "qmlformat accepted a file with a parse error"
             exit 1
           fi
-          "$QMLFORMAT" BarWidget.qml > /dev/null
+          for qml in *.qml; do
+            "$QMLFORMAT" "$qml" > /dev/null
+          done
 
       - name: Run tests
         run: tests/all.sh

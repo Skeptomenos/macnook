@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.katsari.nook",
-  "name": "Nook",
-  "version": "1.1.5",
-  "author": "Katsari",
-  "description": "A bar drawer for when too many plugins have cluttered your bar. Collapse the ones you rarely touch into a tray that opens below the bar rather than along it, so nothing on the bar gets covered or moved. Drag widgets in and out. This Skeptomenos fork sits flush on notched Apple panels.",
+  "id": "david.macnook",
+  "name": "MacNook",
+  "version": "1.0.0",
+  "author": "David",
+  "description": "A bar drawer for notched Omarchy panels. Collapse widgets you rarely touch into a tray that opens below the bar, sits flush on the camera shelf, and never covers the bar. Drag widgets in and out.",
   "kinds": [
     "bar-widget"
   ],
@@ -12,8 +12,8 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Nook",
-    "description": "A bar drawer for when too many plugins have cluttered your bar. Collapse the ones you rarely touch into a tray that opens below the bar rather than along it, so nothing on the bar gets covered or moved. Drag widgets in and out.",
+    "displayName": "MacNook",
+    "description": "A bar drawer for notched Omarchy panels. Collapse widgets you rarely touch into a tray that opens below the bar rather than along it. Drag widgets in and out.",
     "category": "Layout",
     "allowMultiple": false,
     "defaultSection": "right",

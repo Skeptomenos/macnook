@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Drag a widget into Nook and back out, using a real pointer.
+"""Drag a widget into MacNook and back out, using a real pointer.
 
 Nothing else reaches this code path. The bar starts a drag from its own pointer
-handlers and Nook reads the bar's drag state, so absorb-by-drag, the reveal, and
+handlers and MacNook reads the bar's drag state, so absorb-by-drag, the reveal, and
 eject-by-drag can only be exercised by moving the pointer for real.
 
 Usage: tests/drag.test.py [source-widget-id]   (default: omarchy.spacer)
@@ -21,7 +21,7 @@ import sys
 import tempfile
 import time
 
-NOOK = "io.github.katsari.nook"
+NOOK = "david.macnook"
 SOURCE = sys.argv[1] if len(sys.argv) > 1 else "omarchy.spacer"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 VPTR = ROOT / "tests" / "tools" / "vptr" / "vptr"
@@ -128,7 +128,7 @@ def nook_entry(cfg=None):
         for entry in cfg["bar"]["layout"].get(section, []):
             if isinstance(entry, dict) and entry.get("id") == NOOK:
                 return entry
-    raise AssertionError("Nook is not in the bar layout; this test needs it there")
+    raise AssertionError("MacNook is not in the bar layout; this test needs it there")
 
 
 def hosted_ids(cfg=None):
@@ -169,13 +169,13 @@ def main():
 
     slots = geometry()
     if NOOK not in slots or not slots[NOOK]["visible"]:
-        print("drag.test.py: Nook is not visible on the bar, skipping", file=sys.stderr)
+        print("drag.test.py: MacNook is not visible on the bar, skipping", file=sys.stderr)
         return 0
     if SOURCE not in slots or not slots[SOURCE]["visible"]:
         print(f"drag.test.py: {SOURCE} is not visible on the bar, skipping", file=sys.stderr)
         return 0
     if SOURCE in hosted_ids():
-        print(f"drag.test.py: {SOURCE} is already inside Nook, skipping", file=sys.stderr)
+        print(f"drag.test.py: {SOURCE} is already inside MacNook, skipping", file=sys.stderr)
         return 0
 
     backup = pathlib.Path(tempfile.mkdtemp()) / "shell.json"
@@ -196,9 +196,9 @@ def main():
             # is a retry, not a second assertion.
             fresh = geometry()
             mouse.drag(center(fresh[SOURCE]), center(fresh[NOOK]))
-        wait_for(lambda: SOURCE in hosted_ids(), f"{SOURCE} to land in Nook's items")
+        wait_for(lambda: SOURCE in hosted_ids(), f"{SOURCE} to land in MacNook's items")
         assert not on_bar(SOURCE), f"{SOURCE} is in items but still in the bar layout"
-        print(f"ok: dragged {SOURCE} from the bar into Nook")
+        print(f"ok: dragged {SOURCE} from the bar into MacNook")
 
         # 2. hovering really opens the drawer and the widget really gets drawn.
         # itemVisible is false while the strip is shut: the cell's loader hides
@@ -251,7 +251,7 @@ def main():
         hosted = geometry()[SOURCE]
         mouse.glide(chevron, item_center(hosted))
         mouse.drag(item_center(hosted), target)
-        wait_for(lambda: SOURCE not in hosted_ids(), f"{SOURCE} to leave Nook's items")
+        wait_for(lambda: SOURCE not in hosted_ids(), f"{SOURCE} to leave MacNook's items")
         assert on_bar(SOURCE), f"{SOURCE} left items but is not in the bar layout"
         print(f"ok: dragged {SOURCE} back out onto the bar")
 

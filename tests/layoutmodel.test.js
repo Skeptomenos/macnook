@@ -10,7 +10,7 @@ const Layout = {}
 vm.createContext(Layout)
 vm.runInContext(source, Layout, { filename: "LayoutModel.js" })
 
-const NOOK = "io.github.katsari.nook"
+const NOOK = "david.macnook"
 
 // Layout's functions run in the vm realm, so their arrays fail
 // assert.deepEqual's prototype check. Compare JSON shapes instead.

@@ -24,8 +24,11 @@ jq -e '.entryPoints.barWidget == "BarWidget.qml"' "$ROOT_DIR/manifest.json" >/de
 [[ -f $ROOT_DIR/DrawerItem.qml ]] || fail "DrawerItem.qml is missing"
 [[ -f $ROOT_DIR/CommandButton.qml ]] || fail "CommandButton.qml is missing"
 
-grep -q 'target: "io.github.katsari.nook"' "$ROOT_DIR/BarWidget.qml" \
+PLUGIN_ID=$(jq -r '.id' "$ROOT_DIR/manifest.json")
+grep -q "target: \"$PLUGIN_ID\"" "$ROOT_DIR/BarWidget.qml" \
   || fail "IpcHandler target does not match the plugin id"
+grep -q "moduleName: \"$PLUGIN_ID\"" "$ROOT_DIR/BarWidget.qml" \
+  || fail "moduleName does not match the plugin id"
 
 # qmllint: the mock-typed `bar` and host imports produce warnings on every
 # plugin, so only hard errors fail the run.

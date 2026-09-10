@@ -17,7 +17,7 @@ import "LayoutModel.js" as Layout
 // PluginRegistry.isEnabled never builds them. absorb() and eject() maintain it.
 BarWidget {
   id: root
-  moduleName: "io.github.katsari.nook"
+  moduleName: "david.macnook"
 
   // Read `settings` directly, not through the base class's setting(): the host
   // assigns it after construction, and a binding that reaches it through a helper
@@ -235,7 +235,7 @@ BarWidget {
   function toggle() { latched = !latched }
 
   IpcHandler {
-    target: "io.github.katsari.nook"
+    target: "david.macnook"
 
     // One bar surface per monitor, so state changes go to every instance. Config
     // writes do not: shell.json is shared and one write is the whole change.
@@ -606,8 +606,8 @@ BarWidget {
     active: root.dropHovered || root.expanded
     activeColor: Color.accent
     tooltipText: root.entries.length === 0
-      ? "Nook (empty)"
-      : "Nook (" + root.entries.length + ")"
+      ? "MacNook (empty)"
+      : "MacNook (" + root.entries.length + ")"
     // Tests `latched`, not `expanded`: hovering already makes it expanded, so
     // branching on that meant a click could only ever close it.
     onPressed: function(button) {
@@ -631,7 +631,7 @@ BarWidget {
     color: "transparent"
     surfaceFormat.opaque: false
     exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "nook"
+    WlrLayershell.namespace: "macnook"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 

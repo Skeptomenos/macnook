@@ -11,7 +11,7 @@ import Quickshell
 ShellRoot {
   id: root
 
-  readonly property string nookId: "io.github.katsari.nook"
+  readonly property string nookId: "david.macnook"
   readonly property string sourceDir: Quickshell.env("NOOK_SOURCE_DIR")
 
   property var component: null
@@ -75,7 +75,7 @@ ShellRoot {
   QtObject {
     id: mockRegistry
     property var installedPlugins: ({
-      "io.github.katsari.nook": { kinds: ["bar-widget"] },
+      "david.macnook": { kinds: ["bar-widget"] },
       "w.hosted": { kinds: ["bar-widget"] },
       "w.bar": { kinds: ["bar-widget"] },
     })
