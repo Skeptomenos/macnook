@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.katsari.nook",
   "name": "Nook",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "author": "Katsari",
   "description": "A bar drawer for when too many plugins have cluttered your bar. Collapse the ones you rarely touch into a tray that opens below the bar rather than along it, so nothing on the bar gets covered or moved. Drag widgets in and out. This Skeptomenos fork sits flush on notched Apple panels.",
   "kinds": [
@@ -20,7 +20,8 @@
     "defaults": {
       "items": [],
       "trigger": "hover",
-      "duration": 180
+      "duration": 180,
+      "hideAfter": 10000
     },
     "schema": [
       {
@@ -40,6 +41,14 @@
         "min": 0,
         "max": 1000,
         "defaultValue": 180
+      },
+      {
+        "key": "hideAfter",
+        "type": "integer",
+        "label": "Hide after (ms)",
+        "min": 0,
+        "max": 600000,
+        "defaultValue": 10000
       }
     ]
   },

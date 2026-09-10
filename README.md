@@ -33,7 +33,9 @@ omarchy plugin add https://github.com/Katsari/nook.git --enable
 ## Usage
 
 Hover the chevron to open the tray. Click it to pin the tray open, and click
-again to put it away. Click a widget inside to use it as you would on the bar.
+again to put it away. A pinned tray closes itself 10 seconds after the pointer
+leaves, unless a hosted panel is open or you are dragging. Set `hideAfter` to
+`0` to keep it pinned. Click a widget inside to use it as you would on the bar.
 
 Drag a widget off the bar onto the chevron to file it away, drag one inside the
 tray to reorder it, and drag one out to put it back on the bar. A caret marks
@@ -45,11 +47,12 @@ Every move rewrites `~/.config/omarchy/shell.json`.
 
 Settings live on Nook's `bar.layout` entry in `~/.config/omarchy/shell.json`.
 
-| Key        | Default   | Meaning                                                         |
-| ---------- | --------- | --------------------------------------------------------------- |
-| `items`    | `[]`      | The widgets inside, as layout entries                           |
-| `trigger`  | `"hover"` | `"hover"` opens on pointer-over; anything else means click-only |
-| `duration` | `180`     | Reveal animation, in milliseconds                               |
+| Key         | Default   | Meaning                                                         |
+| ----------- | --------- | --------------------------------------------------------------- |
+| `items`     | `[]`      | The widgets inside, as layout entries                           |
+| `trigger`   | `"hover"` | `"hover"` opens on pointer-over; anything else means click-only |
+| `duration`  | `180`     | Reveal animation, in milliseconds                               |
+| `hideAfter` | `10000`   | Close a pinned tray this many ms after the pointer leaves; `0` disables |
 
 The tray's layer surface is named `nook`, for Hyprland layer rules.
 
@@ -103,7 +106,7 @@ lint and harness legs need the omarchy shell source and a Wayland session, so
 they skip themselves there and only run locally.
 
 `tests/layoutmodel.test.js` runs every shell.json edit in `LayoutModel.js`
-under node. `tests/qml.test.sh` lints `BarWidget.qml`, checks that the QML and
+under node. `tests/qml.test.sh` lints the QML sources, checks that they and
 the library agree, and loads the real widget in a throwaway quickshell
 instance against a mock bar to drive absorb, reorder, eject, and both
 reconcile paths end to end.

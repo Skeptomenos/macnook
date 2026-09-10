@@ -323,6 +323,16 @@ ShellRoot {
 
       mockBar.barForeground = mockBar.themeForeground
       mockBar.useTransparentForeground = false
+
+      if (widget.hideAfterMs !== 10000)
+        return fail("hideAfter default: " + widget.hideAfterMs)
+      widget.latched = true
+      if (!widget.autoHideArmed)
+        return fail("autohide not armed after latch with pointer away")
+      widget.close()
+      if (widget.latched || widget.autoHideArmed)
+        return fail("close() did not disarm autohide")
+
       next()
     } else if (stage === 3) {
       // The reconcile timer fires 250ms after strandedIds changes.

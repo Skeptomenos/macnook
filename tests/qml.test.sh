@@ -14,13 +14,15 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 # The QML and the library must agree on the function set.
 while read -r fn; do
   grep -q "^function $fn(" "$ROOT_DIR/LayoutModel.js" \
-    || fail "BarWidget.qml calls Layout.$fn but LayoutModel.js does not define it"
-done < <(grep -o 'Layout\.[A-Za-z_]*(' "$ROOT_DIR/BarWidget.qml" | sed 's/Layout\.\(.*\)(/\1/' | sort -u)
+    || fail "QML calls Layout.$fn but LayoutModel.js does not define it"
+done < <(grep -Rho 'Layout\.[A-Za-z_]*(' --include='*.qml' "$ROOT_DIR" | sed 's/Layout\.\(.*\)(/\1/' | sort -u)
 
 jq -e '.entryPoints.barWidget == "BarWidget.qml"' "$ROOT_DIR/manifest.json" >/dev/null \
   || fail "manifest.json barWidget entry point is not BarWidget.qml"
 
 [[ -f $ROOT_DIR/LayoutModel.js ]] || fail "LayoutModel.js is missing"
+[[ -f $ROOT_DIR/DrawerItem.qml ]] || fail "DrawerItem.qml is missing"
+[[ -f $ROOT_DIR/CommandButton.qml ]] || fail "CommandButton.qml is missing"
 
 grep -q 'target: "io.github.katsari.nook"' "$ROOT_DIR/BarWidget.qml" \
   || fail "IpcHandler target does not match the plugin id"
@@ -29,11 +31,11 @@ grep -q 'target: "io.github.katsari.nook"' "$ROOT_DIR/BarWidget.qml" \
 # plugin, so only hard errors fail the run.
 if [[ -x $QMLLINT_BIN && -d $OMARCHY_SOURCE/shell/Commons ]]; then
   mkdir -p -- "$TMP/lint/qs"
-  cp -- "$ROOT_DIR/BarWidget.qml" "$ROOT_DIR/LayoutModel.js" "$TMP/lint/"
+  cp -- "$ROOT_DIR"/*.qml "$ROOT_DIR/LayoutModel.js" "$TMP/lint/"
   ln -s -- "$OMARCHY_SOURCE/shell/Commons" "$TMP/lint/qs/Commons"
   ln -s -- "$OMARCHY_SOURCE/shell/Ui" "$TMP/lint/qs/Ui"
   "$QMLLINT_BIN" --signal-handler-parameters disable -I "$TMP/lint" \
-    "$TMP/lint/BarWidget.qml" >"$TMP/qmllint.log" 2>&1 || {
+    "$TMP/lint"/*.qml >"$TMP/qmllint.log" 2>&1 || {
       sed -n '1,120p' "$TMP/qmllint.log" >&2
       fail "qmllint reported errors"
     }

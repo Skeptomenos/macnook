@@ -27,6 +27,14 @@ BarWidget {
   readonly property string trigger: settings && settings.trigger ? String(settings.trigger) : "hover"
   readonly property int animationDuration: settings && settings.duration !== undefined
     ? Math.max(0, Number(settings.duration)) : 180
+  readonly property int hideAfterMs: {
+    if (!settings || settings.hideAfter === undefined || settings.hideAfter === null
+        || String(settings.hideAfter) === "")
+      return 10000
+    var n = Number(settings.hideAfter)
+    if (!isFinite(n) || n < 0) return 10000
+    return Math.round(n)
+  }
 
   // Omarchy 4.0.3 injects a PluginBarApi facade with no widget registry, drag
   // state, or config writes. A first-party sibling still holds the real bar,
@@ -143,7 +151,6 @@ BarWidget {
     return vertical ? screen.height : screen.width
   }
 
-
   property bool pointerInside: false
   property bool latched: false
   // A panel anchors to the widget that opened it, so hold the strip open or the
@@ -154,7 +161,6 @@ BarWidget {
   readonly property bool hoverHeld: trigger === "hover" && !hoverSuppressed && pointerOnDrawer
   // The pointer is over neither while crossing from chevron to strip.
   property bool hoverGrace: false
-
   // Without this the hover under a closing click reopens it immediately.
   property bool hoverSuppressed: false
 
@@ -177,6 +183,19 @@ BarWidget {
 
   readonly property bool expanded: latched || openChildCount > 0 || dropHovered
     || draggingChild || hoverHeld || hoverGrace
+
+  // Click-pin stays until hideAfterMs after the pointer leaves, unless a hosted
+  // panel is open or a drag is in progress. 0 disables. Hover-open already
+  // closes when the pointer leaves.
+  readonly property bool autoHideArmed: hideAfterMs > 0 && latched
+    && !pointerOnDrawer && openChildCount === 0 && !draggingChild && !dropHovered
+
+  Timer {
+    id: autoHideTimer
+    interval: Math.max(1, root.hideAfterMs)
+    running: root.autoHideArmed
+    onTriggered: root.close()
+  }
 
   property real revealProgress: expanded && entries.length > 0 ? 1 : 0
   Behavior on revealProgress {
@@ -236,12 +255,13 @@ BarWidget {
         pointerOnDrawer: root.pointerOnDrawer,
         hoverSuppressed: root.hoverSuppressed,
         openChildren: root.openChildCount,
+        hideAfter: root.hideAfterMs,
+        autoHideArmed: root.autoHideArmed,
         items: root.entries.length,
         overflowing: root.overflowing
       })
     }
   }
-
 
   readonly property real stripThickness: barSize + cardPadding * 2
   readonly property real cardPadding: Style.space(4)
@@ -289,7 +309,7 @@ BarWidget {
   // space is already a screen position along that axis, which is the space the
   // strip uses too. That is why one number addresses both windows.
   readonly property real chevronAlong: {
-    chevronWatcher.transform          // reactive dependency
+    chevronWatcher.transform
     if (!chevron || !barWindow) return 0
     var point = chevron.mapToItem(barWindow.contentItem, 0, 0)
     return vertical ? point.y : point.x
@@ -300,7 +320,6 @@ BarWidget {
     var limit = Math.max(cardMargin, screenAlong - cardExtent - cardMargin)
     return Math.round(Math.max(cardMargin, Math.min(wanted, limit)))
   }
-
 
   property var cells: []
 
@@ -337,9 +356,6 @@ BarWidget {
     return entries.length
   }
 
-  // Bar.qml commits its own reorder and knows nothing about drawers, so a drop
-  // here would only park the entry beside the chevron.
-
   readonly property bool dragActive: bar && "barDragSource" in bar
     && bar.barDragSource !== null
     && bar.barDragSource !== ownSlot && !draggingChild
@@ -375,7 +391,7 @@ BarWidget {
     if (dropHovered) {
       armedId = dragSourceId()
     } else if (bar.barDragSource) {
-      armedId = ""                                // pointer left again, still dragging
+      armedId = ""
       armedIndex = -1
       caretIndex = -1
     }
@@ -405,13 +421,15 @@ BarWidget {
     // it reassigns layoutConfig, rebuilding every widget on every monitor, this one
     // included. Watches the target rather than the pointer because Bar.qml sets
     // barDragSceneX first and the target a few lines later.
+    // Bar.qml commits its own reorder and knows nothing about drawers, so a drop
+    // here would only park the entry beside the chevron.
     function onBarDragTargetChanged() {
       if (!root.dropHovered || !root.bar || root.bar.barDragTarget === null) return
       root.armedIndex = root.dropOnCard
         ? root.insertionIndexAt(root.vertical ? root.bar.barDragSceneY : root.bar.barDragSceneX)
         : -1
       root.caretIndex = root.armedIndex
-      root.bar.barDragTarget = null            // re-enters, and returns at the null check
+      root.bar.barDragTarget = null
     }
 
     // Release and cancel look identical here, so an abandoned drag lands.
@@ -425,7 +443,6 @@ BarWidget {
       if (id) root.absorb(id, index)
     }
   }
-
 
   property int draggingIndex: -1
   property int caretIndex: -1
@@ -481,7 +498,6 @@ BarWidget {
     draggingOutside = false
   }
 
-
   function mutate(change) {
     var host = bar && bar.shell ? bar.shell : null
     if (!host || typeof host.mutateShellConfig !== "function") return
@@ -490,7 +506,6 @@ BarWidget {
       change(config)
     })
   }
-
 
   // -1 appends.
   function absorb(id, index) {
@@ -558,7 +573,6 @@ BarWidget {
     }
   }
 
-
   HoverHandler {
     id: drawerHover
     onHoveredChanged: root.pointerInside = hovered
@@ -590,7 +604,7 @@ BarWidget {
       return root.expanded ? back : away
     }
     active: root.dropHovered || root.expanded
-    activeColor: Color.accent          // `active` defaults to bar.urgent, kept for urgency
+    activeColor: Color.accent
     tooltipText: root.entries.length === 0
       ? "Nook (empty)"
       : "Nook (" + root.entries.length + ")"
@@ -608,7 +622,6 @@ BarWidget {
       }
     }
   }
-
 
   PanelWindow {
     id: strip
@@ -668,8 +681,6 @@ BarWidget {
 
       HoverHandler { id: cardHover }
 
-      // WidgetButton forwards onWheel to the widget under the pointer and several use
-      // it, so the edge-scroll below carries the cases the wheel cannot.
       WheelHandler {
         enabled: root.overflowing
         target: null
@@ -679,7 +690,6 @@ BarWidget {
         }
       }
 
-      // -1 scrolls back toward the first widget, +1 on toward the last.
       readonly property int edgeDirection: {
         if (!root.overflowing || !cardHover.hovered) return 0
         var position = root.vertical ? cardHover.point.position.y : cardHover.point.position.x
@@ -723,6 +733,7 @@ BarWidget {
             DrawerItem {
               required property var modelData
               required property int index
+              drawer: root
               entry: modelData
               position: index
             }
@@ -741,6 +752,7 @@ BarWidget {
             DrawerItem {
               required property var modelData
               required property int index
+              drawer: root
               entry: modelData
               position: index
             }
@@ -813,369 +825,4 @@ BarWidget {
   }
 
   readonly property var itemsFlow: vertical ? itemsColumn : itemsRow
-
-  component DrawerItem: Item {
-    id: cell
-
-    // Captured: during teardown `root` is gone before these destruction handlers run.
-    readonly property var owner: root
-    readonly property var host: root.bar
-
-    required property var entry
-    required property int position
-    readonly property int index: position
-
-    // The Repeater hands entries over as QVariant maps, whose keys a plain for-in
-    // does not enumerate. A JSON round-trip makes them ordinary objects again.
-    readonly property var plainEntry: entry ? JSON.parse(JSON.stringify(entry)) : ({})
-    readonly property string childId: String(plainEntry.id || "")
-    readonly property var childSettings: {
-      var copy = ({})
-      for (var key in plainEntry) {
-        if (key !== "id") copy[key] = plainEntry[key]
-      }
-      return copy
-    }
-    // "command" for an `exec` entry, "qml" for a `source` one, "" for a plugin.
-    readonly property string customType: root.customTypeOf(cell.entry)
-    readonly property bool custom: customType !== ""
-
-    // Reading `widgetRegistry` is what makes this re-evaluate when a plugin is
-    // enabled, disabled, or reloaded from disk.
-    readonly property var childComponent: {
-      if (cell.customType === "command") return commandModule
-      if (cell.customType === "qml") return null
-      var widgets = root.widgetRegistry
-      var registered = widgets && widgets[cell.childId] ? widgets[cell.childId] : null
-      return registered ? registered.component : null
-    }
-    readonly property var childItem: cell.customType === "qml" ? qmlLoader.item : childLoader.item
-    readonly property bool dragSource: root.draggingIndex === cell.index
-
-    // Uninstalled: take up no room while the removal is written out.
-    readonly property bool uninstalled: !cell.custom && root.missingIds.indexOf(cell.childId) !== -1
-
-    // Last known "this widget wants to be on the bar" size. Start assuming
-    // shown so a failed first measure cannot empty the drawer; the first
-    // open corrects widgets that really set visible:false.
-    property bool hostedShown: true
-    property real hostedExtent: Style.bar.iconSlot
-
-    function hostLoaderVisible() {
-      return cell.customType === "qml" ? qmlLoader.visible : childLoader.visible
-    }
-
-    function syncHostedMetrics() {
-      if (cell.uninstalled) {
-        hostedShown = false
-        hostedExtent = 0
-        return
-      }
-      var item = cell.childItem
-      if (!item) {
-        var placeholder = !cell.custom && cell.childComponent === null
-        hostedShown = placeholder
-        hostedExtent = placeholder ? Style.bar.iconSlot : 0
-        return
-      }
-      // Item.visible is effective visibility. While the loader is hidden
-      // (drawer shut) every child reads as false — ignore that.
-      if (!cell.hostLoaderVisible())
-        return
-      if (item.visible === false) {
-        hostedShown = false
-        hostedExtent = 0
-        return
-      }
-      hostedShown = true
-      var natural = root.vertical ? item.implicitHeight : item.implicitWidth
-      if (natural > 0)
-        hostedExtent = natural
-    }
-
-    Connections {
-      target: cell.childItem
-      enabled: cell.hostLoaderVisible()
-      function onVisibleChanged() { cell.syncHostedMetrics() }
-      function onImplicitWidthChanged() { cell.syncHostedMetrics() }
-      function onImplicitHeightChanged() { cell.syncHostedMetrics() }
-    }
-
-    onUninstalledChanged: cell.syncHostedMetrics()
-    onChildComponentChanged: cell.syncHostedMetrics()
-
-    Timer {
-      id: metricsAfterReveal
-      interval: 1
-      onTriggered: cell.syncHostedMetrics()
-    }
-
-    implicitWidth: hostedShown ? (root.vertical ? root.barSize : hostedExtent) : 0
-    implicitHeight: hostedShown ? (root.vertical ? hostedExtent : root.barSize) : 0
-    width: implicitWidth
-    height: implicitHeight
-    clip: true
-
-    Component.onCompleted: {
-      root.setCell(cell.index, cell)
-      cell.syncHostedMetrics()
-    }
-    // A reused delegate never runs onCompleted again.
-    onPositionChanged: root.setCell(cell.index, cell)
-
-    // QML hands back an error object, not null, for a parent that is already gone,
-    // so a plain truth test is not enough to know the call is safe.
-    Component.onDestruction: {
-      if (owner && typeof owner.clearCell === "function") owner.clearCell(cell)
-      if (childOpen && owner && typeof owner.noteChildOpen === "function") owner.noteChildOpen(true, false)
-      // A cell destroyed mid-drag never reports the drag ending.
-      if (owner && typeof owner.cancelChildDrag === "function" && owner.draggingIndex === cell.index)
-        owner.cancelChildDrag()
-    }
-
-    function inject() {
-      var target = childItem
-      if (!target) return
-      if ("bar" in target) target.bar = cell.host
-      if ("entry" in target) target.entry = cell.plainEntry
-      if ("moduleName" in target) target.moduleName = cell.childId
-      if ("settings" in target) target.settings = cell.childSettings
-    }
-
-    // Ui/WidgetButton and the icons it loads take their colour from
-    // bar.barForeground. Rebind that to the colour the card is painted
-    // against, and only where it is still the bar's colour, so a widget that
-    // chose its own is left alone. Qt.binding, not a value, so it still
-    // follows the theme. A readonly property cannot be rebound and keeps the
-    // bar's colour.
-    function paintForTheCard(item) {
-      if (!item || !root.bar) return
-      // Only when the bar has moved off the theme colour. Rebinding replaces
-      // the widget's own binding, so leave every widget alone when there is
-      // nothing to correct.
-      if (Qt.colorEqual(root.bar.barForeground, root.hostedForeground)) return
-      if ("foreground" in item) {
-        try {
-          if (Qt.colorEqual(item.foreground, root.bar.barForeground))
-            item.foreground = Qt.binding(function() { return root.hostedForeground })
-        } catch (e) {
-        }
-      }
-      var kids = item.children
-      for (var i = 0; i < kids.length; i++) cell.paintForTheCard(kids[i])
-    }
-
-    onChildSettingsChanged: inject()
-    onHostChanged: inject()
-
-    property bool childOpen: childItem && childItem.opened === true
-    onChildOpenChanged: root.noteChildOpen(!childOpen, childOpen)
-
-    Loader {
-      id: qmlLoader
-      anchors.fill: parent
-      active: cell.customType === "qml"
-      source: cell.customType === "qml" ? root.customSourceOf(cell.entry) : ""
-      visible: root.revealProgress > 0.01
-      opacity: cell.dragSource ? (root.draggingOutside ? 0.12 : 0.3) : 1.0
-      onVisibleChanged: if (visible) {
-        Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
-        metricsAfterReveal.restart()
-      }
-      onLoaded: {
-        cell.inject()
-        Qt.callLater(cell.inject)
-        Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
-        Qt.callLater(cell.syncHostedMetrics)
-      }
-    }
-
-    Loader {
-      id: childLoader
-      anchors.fill: parent
-      active: cell.customType !== "qml"
-      sourceComponent: cell.childComponent
-      // An icon loaded from a Component does not exist until the strip is
-      // drawn, so catch it on the way in as well.
-      onVisibleChanged: if (visible) {
-        Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
-        metricsAfterReveal.restart()
-      }
-
-      // Every WidgetButton here registers in `bar.clickTargets`, which
-      // Bar.moduleClickTargetAt scans across windows with no idea the strip is shut.
-      // It skips targets whose `visible` is false.
-      visible: root.revealProgress > 0.01
-      opacity: cell.dragSource ? (root.draggingOutside ? 0.12 : 0.3) : 1.0
-      onLoaded: {
-        cell.inject()
-        Qt.callLater(cell.inject)
-        Qt.callLater(function() { cell.paintForTheCard(cell.childItem) })
-        Qt.callLater(cell.syncHostedMetrics)
-      }
-
-      Behavior on opacity { NumberAnimation { duration: 90 } }
-    }
-
-    // Marks a child whose plugin is disabled.
-    Text {
-      anchors.centerIn: parent
-      visible: !cell.custom && cell.childComponent === null && !cell.uninstalled
-        && root.revealProgress > 0.01
-      text: ""
-      font.family: cell.host ? cell.host.fontFamily : Style.font.family
-      font.pixelSize: Style.font.body
-      color: cell.host ? cell.host.barForeground : Color.foreground
-      opacity: 0.4
-    }
-
-    // Lets the host's id-to-widget lookups find a child that owns no layout entry.
-    Item {
-      id: proxySlot
-      visible: false
-      width: 0
-      height: 0
-
-      readonly property var entry: cell.entry
-      readonly property string region: root.region
-      readonly property string moduleName: cell.childId
-      readonly property var moduleSettings: cell.childSettings
-      readonly property string customType: cell.customType
-      readonly property bool qmlCustom: cell.customType === "qml"
-      readonly property bool commandCustom: cell.customType === "command"
-      readonly property bool registered: true
-      readonly property var registryComponent: cell.childComponent
-      readonly property var activeItem: cell.childItem
-      readonly property bool hovered: false
-      readonly property bool dragSource: cell.dragSource
-      readonly property bool panelOpen: cell.childOpen
-      readonly property real panelIndicatorExtent: 0
-
-      property var registeredWith: null
-
-      function attach() {
-        var next = cell.host
-        if (next === registeredWith) return
-        detach()
-        registeredWith = next
-        if (registeredWith && registeredWith.registerModuleSlot) registeredWith.registerModuleSlot(proxySlot)
-      }
-
-      function detach() {
-        if (registeredWith && registeredWith.unregisterModuleSlot) registeredWith.unregisterModuleSlot(proxySlot)
-        registeredWith = null
-      }
-
-      Component.onCompleted: attach()
-      Component.onDestruction: detach()
-
-      Connections {
-        target: cell
-        function onHostChanged() { proxySlot.attach() }
-      }
-    }
-
-    // The host draws its dot per bar slot, so these draw their own.
-    Rectangle {
-      readonly property int inset: Style.space(2)
-      readonly property bool alongBar: !root.vertical
-
-      visible: opacity > 0
-      opacity: cell.childOpen && !cell.dragSource ? 0.9 : 0
-      color: Color.accent
-      radius: Math.min(width, height) / 2
-      width: alongBar ? Math.max(Style.space(10), Math.round(cell.width * 0.55)) : Style.space(2)
-      height: alongBar ? Style.space(2) : Math.max(Style.space(10), Math.round(cell.height * 0.55))
-      x: alongBar
-        ? Math.round((parent.width - width) / 2)
-        : (root.barPosition === "left" ? inset : parent.width - width - inset)
-      y: alongBar
-        ? (root.barPosition === "bottom" ? parent.height - height - inset : inset)
-        : Math.round((parent.height - height) / 2)
-      z: 50
-
-      Behavior on opacity {
-        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-      }
-    }
-
-    // The bar's own exec module is private to Bar.qml, so a drawer that hosts
-    // one has to carry its own. Same settings, same waybar-style JSON output.
-    Component {
-      id: commandModule
-
-      WidgetButton {
-        id: command
-
-        property var entry: null
-        readonly property var moduleSettings: Util.isPlainObject(entry) ? entry : ({})
-        property string outputText: ""
-        property string outputTooltip: ""
-        property bool outputActive: false
-
-        function setting(name, fallback) {
-          var value = moduleSettings[name]
-          return value === undefined || value === null ? fallback : value
-        }
-
-        function update(raw) {
-          var data = Util.parseModuleJson(raw)
-          var klass = data.class || data.alt || ""
-          outputText = data.text || String(raw || "").trim()
-          outputTooltip = data.tooltip || String(setting("tooltip", ""))
-          outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
-        }
-
-        text: outputText || String(setting("text", ""))
-        tooltipText: outputTooltip || String(setting("tooltip", ""))
-        active: outputActive
-        keepSpace: setting("keepSpace", false) === true
-        horizontalMargin: Number(setting("horizontalMargin", 7.5))
-        verticalPadding: Number(setting("verticalPadding", 6))
-        fontSize: Number(setting("fontSize", 12))
-
-        onPressed: function(button) {
-          var script = button === Qt.RightButton ? String(setting("onRightClick", ""))
-            : button === Qt.MiddleButton ? String(setting("onMiddleClick", ""))
-            : String(setting("onClick", ""))
-          if (script) Util.execDetached(script)
-        }
-
-        Process {
-          id: commandProcess
-          command: ["bash", "-lc", String(command.setting("exec", ""))]
-          stdout: StdioCollector {
-            waitForEnd: true
-            onStreamFinished: command.update(text)
-          }
-        }
-
-        Timer {
-          interval: Math.max(1, Number(command.setting("interval", 5))) * 1000
-          running: String(command.setting("exec", "")) !== ""
-          repeat: true
-          triggeredOnStart: true
-          onTriggered: if (!commandProcess.running) commandProcess.running = true
-        }
-      }
-    }
-
-    // A handler, not a MouseArea: a MouseArea over the cell takes the press before
-    // the widget does. DragHandler only claims the gesture past the threshold.
-    DragHandler {
-      id: cellDrag
-
-      target: null
-      acceptedButtons: Qt.LeftButton
-      dragThreshold: Style.space(4)
-      grabPermissions: PointerHandler.CanTakeOverFromAnything
-
-      onActiveChanged: {
-        if (active) root.beginChildDrag(cell)
-        else root.endChildDrag()
-      }
-
-      onCentroidChanged: if (active) root.updateChildDrag(centroid.scenePosition)
-    }
-  }
 }
