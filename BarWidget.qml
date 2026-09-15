@@ -605,9 +605,10 @@ BarWidget {
     }
     active: root.dropHovered || root.expanded
     activeColor: Color.accent
-    tooltipText: root.entries.length === 0
-      ? "MacNook (empty)"
-      : "MacNook (" + root.entries.length + ")"
+    // The tooltip bubble renders under the chevron exactly where the open
+    // drawer sits, so it overlaps the hosted widgets. It is redundant anyway:
+    // opening the tray is what shows what is inside.
+    tooltipText: ""
     // Tests `latched`, not `expanded`: hovering already makes it expanded, so
     // branching on that meant a click could only ever close it.
     onPressed: function(button) {
