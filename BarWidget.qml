@@ -267,14 +267,22 @@ BarWidget {
   readonly property real cardPadding: Style.space(4)
   readonly property real cardMargin: Style.gapsOut
 
-  // On a notched Apple panel the bar window is taller than Style.bar.size
-  // (see Bar.qml notchFloor). The strip must clear that full window, not the
-  // icon row, or the drawer sits inside the camera cutout. Sit flush against
-  // the bar — no extra gap.
+  // The bar publishes its actual per-screen thickness, including the notch
+  // floor. Newer shells keep the bar window screen-sized for dragging, so
+  // its height/width is no longer the thickness of the painted bar.
   readonly property real barThickness: {
     var measured = 0
-    if (barWindow)
-      measured = vertical ? barWindow.width : barWindow.height
+    var screen = barWindow ? barWindow.screen : null
+    var sizes = bar ? bar.screenBarSizes : null
+    if (screen && sizes && Number(sizes[screen.name]) > 0)
+      measured = Number(sizes[screen.name])
+    else if (barWindow) {
+      // Older shells used a bar-sized window. Do not mistake a screen-sized
+      // window for a bar if the per-screen thickness is not yet available.
+      var extent = vertical ? barWindow.width : barWindow.height
+      var screenExtent = screen ? (vertical ? screen.width : screen.height) : 0
+      if (!screenExtent || extent < screenExtent) measured = extent
+    }
     return Math.max(barSize, measured)
   }
 
@@ -376,9 +384,8 @@ BarWidget {
     if (!barWindow) return false
     var along = vertical ? sceneY : sceneX
     var across = vertical ? sceneX : sceneY
-    var barThickness = vertical ? barWindow.width : barWindow.height
     var pastBar = barPosition === "top" || barPosition === "left"
-      ? across > barThickness
+      ? across > root.barThickness
       : across < 0
     return pastBar && along >= cardAlong && along <= cardAlong + cardExtent
   }

@@ -134,6 +134,7 @@ ShellRoot {
     property string position: "top"
     property bool vertical: false
     property int barSize: 36
+    property var screenBarSizes: ({})
     property string fontFamily: "sans-serif"
     property color background: "#292025"
     property color foreground: "#ffffff"
@@ -207,7 +208,8 @@ ShellRoot {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     implicitWidth: 1
-    implicitHeight: 1
+    // Model the newer screen-sized bar surface rather than a thin window.
+    implicitHeight: screen ? screen.height : 1
     anchors { top: true; left: true }
     mask: Region {}
 
@@ -279,6 +281,21 @@ ShellRoot {
       if (widget.entries.length !== 2 || widget.entries[0].id !== "w.hosted")
         return fail("initial entries: " + JSON.stringify(widget.entries))
       if (widget.trigger !== "click") return fail("trigger setting not injected")
+      var screen = widget.barWindow ? widget.barWindow.screen : null
+      if (!screen) return fail("no screen for thickness test")
+      var sizes = ({})
+      sizes[screen.name] = 58
+      mockBar.screenBarSizes = sizes
+      if (widget.barThickness !== 58)
+        return fail("per-screen notch thickness ignored: " + widget.barThickness)
+      sizes = ({})
+      sizes[screen.name] = 72
+      mockBar.screenBarSizes = sizes
+      if (widget.barThickness !== 72)
+        return fail("per-screen thickness change ignored: " + widget.barThickness)
+      mockBar.screenBarSizes = ({})
+      if (widget.barThickness !== 36)
+        return fail("old bar-window fallback: " + widget.barThickness)
       if (widget.missingIds.length !== 0) return fail("clean config flagged an uninstall")
       if (widget.strandedIds.join() !== "w.bar")
         return fail("stranded settings not spotted: " + widget.strandedIds)
